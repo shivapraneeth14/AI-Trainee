@@ -3,32 +3,36 @@ import threading
 import os
 import time
 import traceback
-from process_video import analyze_video   # 👈 import function from process_video.py
+from process_video import analyze_video   # make sure this file exists
 
 print("[START] Importing modules...")
 
 app = Flask(__name__)
 
-# Directories
+# ----------------- Directories -----------------
 RESULTS_DIR = os.path.join(os.getcwd(), "results")
 UPLOADS_DIR = os.path.join(os.getcwd(), "uploads")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
+# ----------------- Test Route -----------------
+@app.route("/ping", methods=["GET"])
+def ping():
+    """Simple route to check if Flask is running"""
+    print("[INFO] /ping called")
+    return "pong", 200
 
-# ----------------- API ENDPOINT -----------------
+# ----------------- Process Video Route -----------------
 @app.route("/process", methods=["POST"])
 def trigger_process():
     """
-    Accepts JSON request with only jobId.
-    Finds video in uploads/<jobId>.mp4
+    Accepts JSON request with jobId + path.
     Spawns background thread to analyze video.
     """
     try:
         data = request.get_json(force=True)
         print(f"[DEBUG] Incoming request data: {data}")
 
-        # job_id = data.get("jobId") or str(int(time.time()))
         job_id = data.get("jobId") or str(int(time.time()))
         video_path = data.get("path")
 
@@ -52,7 +56,8 @@ def trigger_process():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-
+# ----------------- Run Flask -----------------
 if __name__ == "__main__":
     print("[INFO] Starting Flask ML service on port 5001...")
+    # debug=True enables auto-reload and better logging
     app.run(host="0.0.0.0", port=5001, debug=True)
