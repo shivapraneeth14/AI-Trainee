@@ -8,7 +8,7 @@ const router = Router();
 router.route("/register").post(register);
 router.route("/Login").post(Login);
 router.route("/profile").get(getuserprofile);
-router.post("/upload", upload.single("video"), uploadVideo);
+router.post("/upload",upload.single("video"),uploadVideo);
 
 // router.post("/upload", upload.single("video"), uploadVideo);
 // router.get("/result/:jobId", getResult);
