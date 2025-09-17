@@ -16,6 +16,7 @@ __pycache__/
 htmlcov/
 .pytest_cache/
 *.log
+*.mp4          # Ignore uploaded videos
 
 # Virtual environments
 .venv/
@@ -23,13 +24,10 @@ env/
 venv/
 ENV/
 env.bak/
-__pycache__/
-*.pyc
-*.log
-*.mp4
+
 # Environment variables
 .env
-.env.*   # For multiple environment configs (dev, prod, test)
+.env.*         # multiple environment configs
 
 # Migrations (optional, if using Django/Flask)
 *.sqlite3
@@ -99,3 +97,9 @@ reports/
 coverage.xml
 *.cover
 htmlcov/
+
+# ====================
+# Custom project folders
+# ====================
+uploads/       # Uploaded videos (optional)
+results/       # ML results folder (optional if storing in DB)
