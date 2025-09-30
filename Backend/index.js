@@ -11,11 +11,12 @@ const app = express();
 // Middleware
 app.use(
   cors({
-    origin: "http://localhost:5173", // React app URL
+    origin: "http://localhost:52284", // React app URL
     credentials: true,              // allow cookies/auth
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use("/api",router);
 // Test Route
 app.get("/", (req, res) => {
@@ -25,7 +26,7 @@ app.post("/api/test", (req, res) => {
   console.log("Route hit!");
   res.json({ message: "Test route works" });
 });
-// MongoDB Connectio
+// MongoDB Connection
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {

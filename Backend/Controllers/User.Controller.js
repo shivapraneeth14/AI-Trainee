@@ -2,6 +2,7 @@ import User from "../Schemas/User.Schema.js"
 import bcrypt from "bcrypt"
 import mongoose from "mongoose";
 import Result from "../Schemas/Result.Schema.js";
+import jwt from "jsonwebtoken";
 const saltroundes = 10;
 async function generatebothtoken(userid) {
     try {
@@ -21,86 +22,127 @@ async function generatebothtoken(userid) {
         throw new Error("Error generating tokens");
     }
 }
-
 const register = async (req, res) => {
-    const { username, email, password } = req.body;
-    console.log("Back end start",username)
+    const {
+        username,
+        password,
+        role,
+        region,
+        sport,
+        gender,
+        age,
+        specialization,
+        experience,
+        team,
+        certification
+    } = req.body;
+    console.log("backend", req.body);
     try {
-        if (!username || !email || !password) {
-            return res.status(400).json({ message: "Credentials not provided" });
+        // Validate fields based on role
+        if (role === "athlete" && (!username || !region || !password || !sport || !gender || !age)) {
+            return res.status(400).json({ message: "Please provide all athlete fields" });
         }
-        const user = await User.findOne({ 
-            $or: [
-                { username },
-                {  email }
-            ]
-        });
-        if (user) {
-            console.log(user)
-            return res.status(400).json({ message: "User already exists" });
+        if (role === "coach" && (!username || !region || !password || !specialization || !experience || !team || !certification)) {
+            return res.status(400).json({ message: "Please provide all coach fields" });
+        }
 
+        // Check for existing user
+        const existingUser = await User.findOne({ username });
+        if (existingUser) {
+            return res.status(400).json({ message: "User already exists" });
         }
-        const hashedpassword = await bcrypt.hash(password,saltroundes)
-        if(!hashedpassword){
-            return res.status(400).json({message:"password is not hashed"})
-        }
-        console.log("hased password",hashedpassword)
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create user
         const newUser = new User({
             username,
-            password: hashedpassword,
-            email
+            password: hashedPassword,
+            role,
+            region,
+            sport: role === "athlete" ? sport : undefined,
+            gender: role === "athlete" ? gender : undefined,
+            age: role === "athlete" ? age : undefined,
+            specialization: role === "coach" ? specialization : undefined,
+            experience: role === "coach" ? experience : undefined,
+            team: role === "coach" ? team : undefined,
+            certification: role === "coach" ? certification : undefined
         });
-        console.log("newuser",newUser)
-        const savedUser = await newUser.save();
-        if (savedUser) {
-            return res.status(201).json({ message: "User created successfully" });
-        } else {
-            return res.status(500).json({ message: "User not created" });
-        }
-        console.log("saved",savedUser)
+
+        // Generate tokens
+        const accessToken = newUser.generateAccessToken();
+        const refreshToken = newUser.generateRefreshToken();
+
+        // Save refresh token in DB
+        newUser.refreshtoken = refreshToken;
+        await newUser.save();
+
+        return res.status(201).json({
+            message: "User created successfully",
+            user: {
+                _id: newUser._id,
+                username: newUser.username,
+                role: newUser.role
+            },
+            tokens: {
+                accessToken,
+                refreshToken
+            }
+        });
     } catch (error) {
         console.error(error);
         return res.status(500).json({ message: "Server error" });
     }
 };
 
-const Login = async (req, res) => {
-    const {loginname , password } = req.body;
-    console.log(loginname,password)
-    if ([loginname, password].some((field) => 
-        field?.trim() === ""))
-     {
-        return res.status(400).json({ message: "Enter the credentials" });
-    }
-    try {
-        const user = await User.findOne({ $or: [{ username: loginname }, { email: loginname }]})
-        if (!user) {
-            return res.status(404).json({ message: "No user found" });
-        }
-        console.log("user",user)
 
+const Login = async (req, res) => {
+    const { loginname, password, role } = req.body;
+    console.log(loginname, password, role);
+
+    if ([loginname, password, role].some((field) => field?.trim() === "")) {
+        return res.status(400).json({ message: "Enter the credentials" });
+    }   
+
+    try {
+        // Check user by loginname (username/email) + role
+        const user = await User.findOne({
+            $or: [{ username: loginname }, { email: loginname }],
+            role: role, // role condition added
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: `No ${role} found with given login details` });
+        }
+
+        // Verify password
         const passwordCorrect = await user.isPasswordCorrect(password);
         if (!passwordCorrect) {
             return res.status(401).json({ message: "Incorrect password" });
         }
-        console.log("correct password")
 
-        const {accessToken,refreshToken} = await generatebothtoken(user._id)
-        const loggedinuser = await User.findById(user._id).select("-password")
-        console.log("accestoken:",accessToken)
-        console.log("refreshtoken:",refreshToken)
-        console.log(loggedinuser)
-        console.log("login successfull")
-       
+        // Generate tokens
+        const { accessToken, refreshToken } = await generatebothtoken(user._id);
+        const loggedinuser = await User.findById(user._id).select("-password");
 
-        res.cookie("accessToken", accessToken, {  secure: true });
-        res.cookie("refreshToken", refreshToken, {  secure: true });
-        res.status(200).json({ message: "Logged in successfully", accessToken, refreshToken, loggedinuser });
+        // Send response
+        res.cookie("accessToken", accessToken, { secure: true });
+        res.cookie("refreshToken", refreshToken, { secure: true });
+
+        return res.status(200).json({
+            message: `${role} logged in successfully`,
+            accessToken,
+            refreshToken,
+            loggedinuser,
+        });
+
     } catch (error) {
         console.error("Login error:", error);
-        res.status(500).json({ message: "Internal server error" });
+        return res.status(500).json({ message: "Internal server error" });
     }
 };
+
 const getuserprofile = async (req, res) => {
     const { username } =req.query;
     console.log("backend", username);
@@ -114,6 +156,102 @@ const getuserprofile = async (req, res) => {
         return res.status(200).json({ user });
     } catch (error) {
         console.log(error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+// Logout current user: invalidate refresh token and clear cookies
+export const logout = async (req, res) => {
+    try {
+        const authHeader = req.headers?.authorization || "";
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            // Still clear cookies even if header is missing
+            res.clearCookie("accessToken");
+            res.clearCookie("refreshToken");
+            return res.status(200).json({ message: "Logged out" });
+        }
+
+        const token = authHeader.split(" ")[1];
+        let payload;
+        try {
+            payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        } catch (_err) {
+            // Token invalid/expired – clear cookies and return success
+            res.clearCookie("accessToken");
+            res.clearCookie("refreshToken");
+            return res.status(200).json({ message: "Logged out" });
+        }
+
+        const userId = payload?._id;
+        if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+            await User.findByIdAndUpdate(userId, { $set: { refreshtoken: null } });
+        }
+
+        res.clearCookie("accessToken");
+        res.clearCookie("refreshToken");
+        return res.status(200).json({ message: "Logged out" });
+    } catch (error) {
+        console.error("logout error:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+// Get current logged-in user's profile using Bearer token
+// Get current logged-in user's profile using Bearer token
+export const getCurrentUserProfile = async (req, res) => {
+    console.log("getCurrentUserProfile");
+    try {
+
+        const authHeader = req.headers?.authorization || "";
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            return res.status(401).json({ message: "Authorization header missing or malformed" });
+        }
+        console.log("authHeader", authHeader);
+
+        const token = authHeader.split(" ")[1];
+        if (!token) {
+            return res.status(401).json({ message: "Token missing" });
+        }
+        console.log("token", token);
+        let payload;
+        try {
+            payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        } catch (err) {
+            return res.status(401).json({ message: "Invalid or expired token" });
+        }
+
+        const userId = payload?._id;
+        if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ message: "Invalid user identifier in token" });
+        }
+console.log("userId", userId);
+        const user = await User.findById(userId).select(
+            "username email bio profilePicture role region sport gender age specialization experience team certification createdAt updatedAt"
+        );
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        return res.status(200).json({
+            user: {
+                _id: user._id,
+                username: user.username,
+                email: user.email,
+                bio: user.bio,
+                profilePicture: user.profilePicture,
+                role: user.role,
+                region: user.region,
+                sport: user.sport,
+                gender: user.gender,
+                age: user.age,
+                specialization: user.specialization,
+                experience: user.experience,
+                team: user.team,
+                certification: user.certification,
+                createdAt: user.createdAt,
+                updatedAt: user.updatedAt,
+            },
+        });
+    } catch (error) {
+        console.error("getCurrentUserProfile error:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 };
