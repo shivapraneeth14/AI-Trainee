@@ -5,6 +5,10 @@ from process_video import analyze_video
 app = Flask(__name__)
 clf = load_model()
 
+@app.get("/")
+def health():
+    return jsonify({"status": "ok", "service": "ml", "version": "1"}), 200
+
 @app.route("/predict_activity", methods=["POST"])
 def predict_activity():
     """
@@ -47,4 +51,4 @@ def process_video_route():
     }), 200
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    app.run(host="0.0.0.0", port=5001, debug=False)
