@@ -11,8 +11,8 @@ const app = express();
 // Middleware
 app.use(
   cors({
-    origin: "http://localhost:52284", // React app URL
-    credentials: true,              // allow cookies/auth
+    origin: process.env.CLIENT_ORIGIN || "*",
+    credentials: true,
   })
 );
 app.use(express.json({ limit: "50mb" }));
