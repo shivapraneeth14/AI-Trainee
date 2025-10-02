@@ -2,6 +2,9 @@ import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import Result from "../Schemas/Result.Schema.js";
 
+// ML service base URL (deployed or local)
+const ML_BASE_URL = process.env.ML_SERVICE_URL || "https://ai-trainee-2.onrender.com";
+
 export const uploadVideo = async (req, res) => {
   try {
     const { keypoints, userId } = req.body;
@@ -14,7 +17,7 @@ export const uploadVideo = async (req, res) => {
 
     // Call Flask ML service to process keypoints with enhanced AI fitness coach
     const mlResponse = await axios.post(
-      "http://localhost:5001/predict_activity",
+      `${ML_BASE_URL}/predict_activity`,
       { keypoints },
       { timeout: 30000 }
     );
@@ -135,7 +138,7 @@ export const testFitnessCoach = async (req, res) => {
 
     // Call Flask ML service
     const mlResponse = await axios.post(
-      "http://localhost:5001/predict_activity",
+      `${ML_BASE_URL}/predict_activity`,
       { keypoints: sampleKeypoints },
       { timeout: 30000 }
     );
